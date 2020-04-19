@@ -4,8 +4,8 @@ from nltk.tag import pos_tag
 from nltk.tokenize import word_tokenize
 from nltk import FreqDist, classify, NaiveBayesClassifier
 
-import re, string, random, time
-
+import re, string, random, math, time
+    
 def remove_noise(tweet_tokens, stop_words = ()):
 
     cleaned_tokens = []
@@ -38,6 +38,12 @@ def get_tweets_for_model(cleaned_tokens_list):
     for tweet_tokens in cleaned_tokens_list:
         yield dict([token, True] for token in tweet_tokens)
 
+def recursive_len(item):
+    if type(item) == list:
+        return sum(recursive_len(subitem) for subitem in item)
+    else:
+        return 1
+
 if __name__ == "__main__":
 
     starttime = time.time()
@@ -62,9 +68,28 @@ if __name__ == "__main__":
         negative_cleaned_tokens_list.append(remove_noise(tokens, stop_words))
 
     all_pos_words = get_all_words(positive_cleaned_tokens_list)
+    pos_freq_dist_pos = FreqDist(all_pos_words)
+    pos_top_20_pct = math.ceil(len(pos_freq_dist_pos.keys()) * 0.05)
+    stopwords = pos_freq_dist_pos.most_common(pos_top_20_pct)
 
-    freq_dist_pos = FreqDist(all_pos_words)
-    print(freq_dist_pos.most_common(10))
+    all_neg_words = get_all_words(negative_cleaned_tokens_list)
+    neg_freq_dist_pos = FreqDist(all_neg_words)
+    neg_top_20_pct = math.ceil(len(neg_freq_dist_pos.keys()) * 0.05)
+    stopwords += neg_freq_dist_pos.most_common(neg_top_20_pct)
+
+    stopwords = [item[0] for item in list(stopwords)]
+
+    # Remove most common positive word
+    for idx, val in enumerate(positive_cleaned_tokens_list):
+        for sidx, sval in enumerate(val):
+            if sval not in stopwords:
+                del positive_cleaned_tokens_list[idx][sidx]
+
+    # Remove most common positive word
+    for idx, val in enumerate(negative_cleaned_tokens_list):
+        for sidx, sval in enumerate(val):
+            if sval not in stopwords:
+                del negative_cleaned_tokens_list[idx][sidx]
 
     positive_tokens_for_model = get_tweets_for_model(positive_cleaned_tokens_list)
     negative_tokens_for_model = get_tweets_for_model(negative_cleaned_tokens_list)
@@ -94,4 +119,4 @@ if __name__ == "__main__":
 
     print(custom_tweet, classifier.classify(dict([token, True] for token in custom_tokens)))
 
-    print("took time in seconds: ", time.time() - starttime)
+    print("Took time in seconds: ", time.time() - starttime)
